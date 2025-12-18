@@ -263,17 +263,25 @@ export async function handleClickComplete(req: Request, res: Response, bot: Bot)
     }
 
     // Agar Click o'zidan xatolik yuborgan bo'lsa
-    if (error && error < 0) {
-        console.error("❌ COMPLETE: Click sent error:", error);
+    // MUHIM: error string bo'lishi mumkin, number ga o'tkazamiz
+    const clickErrorCode = parseInt(error);
+    console.log("🔍 Initial Error Check:");
+    console.log("  error (raw):", error, "type:", typeof error);
+    console.log("  error (parsed):", clickErrorCode);
+
+    if (clickErrorCode < 0) {
+        console.error("❌ COMPLETE: Click sent error:", clickErrorCode);
         console.error("═".repeat(80) + "\n");
         return res.json({
             click_trans_id,
             merchant_trans_id,
             merchant_prepare_id,
-            error: error,
+            error: clickErrorCode,
             error_note: "Error from Click"
         });
     }
+    console.log("  ✅ No initial error from Click");
+    console.log("");
 
     const paymentRepo = AppDataSource.getRepository(Payment);
 
@@ -311,14 +319,19 @@ export async function handleClickComplete(req: Request, res: Response, bot: Bot)
     console.log("  Status:", payment.status);
     console.log("");
 
-
     // Agar Click error qaytargan bo'lsa
-    if (error && error !== 0) {
-        console.error(`❌ COMPLETE: Payment failed with Click error: ${error}`);
+    // MUHIM: error string bo'lishi mumkin, number ga o'tkazamiz
+    const clickError = parseInt(error);
+    console.log("🔍 Click Error Check:");
+    console.log("  error (raw):", error, "type:", typeof error);
+    console.log("  error (parsed):", clickError, "type:", typeof clickError);
+
+    if (clickError !== 0) {
+        console.error(`❌ COMPLETE: Payment failed with Click error: ${clickError}`);
         payment.status = PaymentStatus.FAILED;
         payment.metadata = {
             ...payment.metadata,
-            clickError: error,
+            clickError: clickError,
             failedAt: new Date().toISOString()
         };
         await paymentRepo.save(payment);
@@ -331,6 +344,9 @@ export async function handleClickComplete(req: Request, res: Response, bot: Bot)
             error_note: "Transaction cancelled"
         });
     }
+
+    console.log("  ✅ Click error is 0 (SUCCESS)");
+    console.log("");
 
     // Agar allaqachon to'langan bo'lsa
     if (payment.status === PaymentStatus.PAID) {
