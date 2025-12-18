@@ -236,13 +236,14 @@ export async function handlePayment(ctx: Context) {
     await paymentRepo.save(payment);
 
     // Click to'lov linkini yaratish
+    // merchantUserId ni qo'shmasak, Click default qiymat beradi
     const paymentLink = generateClickPaymentLink({
         serviceId: process.env.CLICK_SERVICE_ID!,
         merchantId: process.env.CLICK_MERCHANT_ID!,
         amount,
         transactionParam,
-        returnUrl: process.env.CLICK_RETURN_URL || `https://t.me/${ctx.me.username}`,
-        merchantUserId: process.env.CLICK_MERCHANT_USER_ID
+        returnUrl: process.env.CLICK_RETURN_URL || `https://t.me/${ctx.me.username}`
+        // merchantUserId ni intentionally qoldirish - bu muammoni keltirib chiqaradi
     });
 
     const keyboard = new InlineKeyboard()

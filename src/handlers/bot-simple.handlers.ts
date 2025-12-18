@@ -229,10 +229,10 @@ export async function handlePayment(ctx: Context) {
     const transactionParam = generateTransactionParam();
 
     // Click to'lov linkini yaratish
+    // merchant_user_id ni qo'shmasak, Click o'zi default qiymat beradi
     const paymentUrl = `https://my.click.uz/services/pay?` +
         `service_id=${process.env.CLICK_SERVICE_ID}&` +
         `merchant_id=${process.env.CLICK_MERCHANT_ID}&` +
-        `merchant_user_id=${process.env.CLICK_MERCHANT_USER_ID}&` +
         `amount=${amount}&` +
         `transaction_param=${transactionParam}&` +
         `return_url=${encodeURIComponent(process.env.CLICK_RETURN_URL || "")}`;

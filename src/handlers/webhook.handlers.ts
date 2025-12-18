@@ -11,12 +11,14 @@ const userService = new UserService();
 /**
  * Click PREPARE method
  * To'lovni tayyorlash (pre-authorization)
+ * Docs: https://docs.click.uz/merchant-api-request/
  */
 export async function handleClickPrepare(req: Request, res: Response, bot: Bot) {
     const {
         click_trans_id,
         service_id,
         merchant_trans_id,
+        merchant_user_id,
         amount,
         action,
         sign_time,
@@ -25,10 +27,23 @@ export async function handleClickPrepare(req: Request, res: Response, bot: Bot) 
         error_note
     } = req.body;
 
-    console.log("📥 PREPARE request:", req.body);
+    console.log(`
+╔════════════════════════════════════════════════════════════╗
+║                  CLICK PREPARE REQUEST                     ║
+╠════════════════════════════════════════════════════════════╣
+║ Click Trans ID: ${click_trans_id}
+║ Service ID: ${service_id}
+║ Merchant Trans ID: ${merchant_trans_id}
+║ Merchant User ID: ${merchant_user_id}
+║ Amount: ${amount}
+║ Action: ${action}
+║ Sign Time: ${sign_time}
+║ Error: ${error || 'none'}
+║ Error Note: ${error_note || 'none'}
+╚════════════════════════════════════════════════════════════╝
+    `);
 
     const secretKey = process.env.CLICK_SECRET_KEY!;
-    const merchantPrepareId = merchant_trans_id; // Transaction param
 
     // Signature tekshirish
     const isValidSignature = verifyClickSignature(
@@ -43,12 +58,13 @@ export async function handleClickPrepare(req: Request, res: Response, bot: Bot) 
     );
 
     if (!isValidSignature) {
+        console.error("❌ PREPARE: Invalid signature!");
         return res.json({
             click_trans_id,
             merchant_trans_id,
             merchant_prepare_id: null,
             error: -1,
-            error_note: "Invalid signature"
+            error_note: "SIGN_CHECK_FAILED: Invalid signature"
         });
     }
 
@@ -61,34 +77,39 @@ export async function handleClickPrepare(req: Request, res: Response, bot: Bot) 
     });
 
     if (!payment) {
+        console.error(`❌ PREPARE: Transaction not found: ${merchant_trans_id}`);
         return res.json({
             click_trans_id,
             merchant_trans_id,
             merchant_prepare_id: null,
-            error: -5,
-            error_note: "Transaction not found"
+            error: -6,
+            error_note: "TRANSACTION_NOT_FOUND: Transaction not found in database"
         });
     }
 
+    console.log(`✅ PREPARE: Transaction found - ID: ${payment.id}, User: ${payment.userId}`);
+
     // Summa tekshirish
     if (parseFloat(amount) !== parseFloat(payment.amount.toString())) {
+        console.error(`❌ PREPARE: Amount mismatch - Expected: ${payment.amount}, Got: ${amount}`);
         return res.json({
             click_trans_id,
             merchant_trans_id,
             merchant_prepare_id: null,
             error: -2,
-            error_note: "Incorrect amount"
+            error_note: "INVALID_AMOUNT: Incorrect amount"
         });
     }
 
     // Agar allaqachon to'langan bo'lsa
     if (payment.status === PaymentStatus.PAID) {
+        console.warn(`⚠️ PREPARE: Already paid - Transaction: ${merchant_trans_id}`);
         return res.json({
             click_trans_id,
             merchant_trans_id,
             merchant_prepare_id: payment.id,
             error: -4,
-            error_note: "Already paid"
+            error_note: "ALREADY_PAID: This transaction already paid"
         });
     }
 
@@ -107,8 +128,10 @@ export async function handleClickPrepare(req: Request, res: Response, bot: Bot) 
         sign_time
     );
 
+    console.log(`✅ PREPARE: Success - Merchant Prepare ID: ${merchantPrepareIdNum}`);
+
     // Muvaffaqiyatli javob
-    return res.json({
+    const response = {
         click_trans_id,
         merchant_trans_id,
         merchant_prepare_id: merchantPrepareIdNum,
@@ -116,12 +139,16 @@ export async function handleClickPrepare(req: Request, res: Response, bot: Bot) 
         error_note: "Success",
         sign_time,
         sign_string: responseSignature
-    });
+    };
+
+    console.log("📤 PREPARE response:", response);
+    return res.json(response);
 }
 
 /**
  * Click COMPLETE method
  * To'lovni yakunlash
+ * Docs: https://docs.click.uz/merchant-api-request/
  */
 export async function handleClickComplete(req: Request, res: Response, bot: Bot) {
     const {
@@ -129,6 +156,7 @@ export async function handleClickComplete(req: Request, res: Response, bot: Bot)
         service_id,
         merchant_trans_id,
         merchant_prepare_id,
+        merchant_user_id,
         amount,
         action,
         sign_time,
@@ -136,7 +164,21 @@ export async function handleClickComplete(req: Request, res: Response, bot: Bot)
         error
     } = req.body;
 
-    console.log("📥 COMPLETE request:", req.body);
+    console.log(`
+╔════════════════════════════════════════════════════════════╗
+║                  CLICK COMPLETE REQUEST                    ║
+╠════════════════════════════════════════════════════════════╣
+║ Click Trans ID: ${click_trans_id}
+║ Service ID: ${service_id}
+║ Merchant Trans ID: ${merchant_trans_id}
+║ Merchant Prepare ID: ${merchant_prepare_id}
+║ Merchant User ID: ${merchant_user_id}
+║ Amount: ${amount}
+║ Action: ${action}
+║ Sign Time: ${sign_time}
+║ Error from Click: ${error || 0}
+╚════════════════════════════════════════════════════════════╝
+    `);
 
     const secretKey = process.env.CLICK_SECRET_KEY!;
 
@@ -153,12 +195,25 @@ export async function handleClickComplete(req: Request, res: Response, bot: Bot)
     );
 
     if (!isValidSignature) {
+        console.error("❌ COMPLETE: Invalid signature!");
         return res.json({
             click_trans_id,
             merchant_trans_id,
             merchant_prepare_id,
             error: -1,
-            error_note: "Invalid signature"
+            error_note: "SIGN_CHECK_FAILED: Invalid signature"
+        });
+    }
+
+    // Agar Click o'zidan xatolik yuborgan bo'lsa
+    if (error && error < 0) {
+        console.error(`❌ COMPLETE: Click sent error: ${error}`);
+        return res.json({
+            click_trans_id,
+            merchant_trans_id,
+            merchant_prepare_id,
+            error: error,
+            error_note: "Error from Click"
         });
     }
 
@@ -174,21 +229,26 @@ export async function handleClickComplete(req: Request, res: Response, bot: Bot)
     });
 
     if (!payment) {
+        console.error(`❌ COMPLETE: Transaction not found - Trans ID: ${merchant_trans_id}, Prepare ID: ${merchant_prepare_id}`);
         return res.json({
             click_trans_id,
             merchant_trans_id,
             merchant_prepare_id,
-            error: -5,
-            error_note: "Transaction not found"
+            error: -6,
+            error_note: "TRANSACTION_NOT_FOUND: Transaction not found in database"
         });
     }
 
+    console.log(`✅ COMPLETE: Transaction found - ID: ${payment.id}, Status: ${payment.status}`);
+
     // Agar Click error qaytargan bo'lsa
     if (error && error !== 0) {
+        console.error(`❌ COMPLETE: Payment failed with Click error: ${error}`);
         payment.status = PaymentStatus.FAILED;
         payment.metadata = {
             ...payment.metadata,
-            clickError: error
+            clickError: error,
+            failedAt: new Date().toISOString()
         };
         await paymentRepo.save(payment);
 

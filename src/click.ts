@@ -1,33 +1,71 @@
 import { v4 as uuidv4 } from "uuid";
 
 /**
- * Click to'lov linkini generatsiya qilish
- * Bir martalik to'lov uchun
+ * Click Error Codes
  */
-export function generateClickLink(amount: number, extraParams?: Record<string, string>) {
-  const tx = uuidv4().replace(/-/g, "");
-  const additional_param3 = extraParams?.additional_param3 || uuidv4().replace(/-/g, "");
-  const additional_param4 = extraParams?.additional_param4 || "basic";
+export const ClickErrorCodes = {
+  SUCCESS: 0,
+  SIGN_CHECK_FAILED: -1,
+  INVALID_AMOUNT: -2,
+  ACTION_NOT_FOUND: -3,
+  ALREADY_PAID: -4,
+  USER_NOT_FOUND: -5,
+  TRANSACTION_NOT_FOUND: -6,
+  FAILED_TO_UPDATE: -7,
+  UNKNOWN_ERROR: -8,
+  TRANSACTION_CANCELLED: -9
+} as const;
 
-  const serviceId = process.env.CLICK_SERVICE_ID || "";
-  const merchantId = process.env.CLICK_MERCHANT_ID || "";
-  const merchantUserId = process.env.CLICK_MERCHANT_USER_ID || "";
-  const returnUrl = process.env.CLICK_RETURN_URL || "";
+/**
+ * Click xatolik kodlari
+ */
+export function getClickErrorMessage(errorCode: number): string {
+  const messages: Record<number, string> = {
+    [-1]: "Invalid signature",
+    [-2]: "Invalid amount",
+    [-3]: "Action not found",
+    [-4]: "Already paid",
+    [-5]: "User not found",
+    [-6]: "Transaction not found",
+    [-7]: "Failed to update",
+    [-8]: "Unknown error",
+    [-9]: "Transaction cancelled",
+    [-2046]: "Subscriber not found in Click system"
+  };
+  return messages[errorCode] || `Unknown error: ${errorCode}`;
+}
 
-  // Click to'lov linki
+/**
+ * Click to'lov linkini generatsiya qilish
+ */
+export function generateClickLink(
+  amount: number, 
+  transactionParam?: string
+): { link: string; tx: string } {
+  const tx = transactionParam || uuidv4().replace(/-/g, "");
+
+  const serviceId = process.env.CLICK_SERVICE_ID;
+  const merchantId = process.env.CLICK_MERCHANT_ID;
+  const returnUrl = process.env.CLICK_RETURN_URL;
+
+  if (!serviceId || !merchantId) {
+    console.error("CLICK_SERVICE_ID or CLICK_MERCHANT_ID not found in .env");
+    throw new Error("Click configuration incomplete");
+  }
+
   const params = new URLSearchParams({
     service_id: serviceId,
     merchant_id: merchantId,
-    merchant_user_id: merchantUserId,
     amount: String(amount),
     transaction_param: tx,
-    return_url: returnUrl
+    return_url: returnUrl || "https://t.me/latifalar1_bot"
   });
 
   const link = `https://my.click.uz/services/pay?${params.toString()}`;
 
-  console.log(`💳 Click link generated: ${link}`);
-  console.log(`📝 Transaction ID: ${tx}`);
+  console.log("Click payment link generated:");
+  console.log("Link:", link);
+  console.log("Transaction ID:", tx);
 
   return { link, tx };
 }
