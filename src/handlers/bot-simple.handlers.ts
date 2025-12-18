@@ -37,8 +37,11 @@ export async function handleStart(ctx: Context) {
     const userId = ctx.from?.id;
     if (!userId) return;
 
+    console.log(`\n👤 User START bosdi - ID: ${userId}, Username: @${ctx.from?.username || "no_username"}, Name: ${ctx.from?.first_name || "No name"}`);
+
     // Foydalanuvchini yaratish/yangilash
     if (!users.has(userId)) {
+        console.log(`✨ Yangi user yaratildi: ${userId}`);
         users.set(userId, {
             telegramId: userId,
             username: ctx.from?.username,
@@ -46,6 +49,8 @@ export async function handleStart(ctx: Context) {
             hasPaid: false,
             viewedAnecdotes: 0
         });
+    } else {
+        console.log(`✅ Mavjud user: ${userId}`);
     }
 
     const keyboard = new InlineKeyboard()
@@ -102,14 +107,19 @@ export async function handleSectionSelect(ctx: Context, section: string) {
     const userId = ctx.from?.id;
     if (!userId) return;
 
+    console.log(`📂 User ${userId} bo'lim tanladi: "${section}"`);
+
     const user = users.get(userId);
-    if (!user) return;
+    if (!user) {
+        console.log(`❌ User ${userId} topilmadi`);
+        return;
+    }
 
     let filteredAnecdotes = section === "random"
         ? anecdotes
         : anecdotes.filter(a => a.section.toLowerCase() === section.toLowerCase());
 
-    console.log(`🔍 Section: "${section}", Found: ${filteredAnecdotes.length} anecdotes`);
+    console.log(`🔍 Bo'limda topildi: ${filteredAnecdotes.length} ta latifa`);
 
     if (filteredAnecdotes.length === 0) {
         await ctx.answerCallbackQuery({
@@ -213,10 +223,16 @@ export async function handlePayment(ctx: Context) {
     const userId = ctx.from?.id;
     if (!userId) return;
 
+    console.log(`\n💳 User ${userId} to'lov tugmasini bosdi`);
+
     const user = users.get(userId);
-    if (!user) return;
+    if (!user) {
+        console.log(`❌ User ${userId} topilmadi`);
+        return;
+    }
 
     if (user.hasPaid) {
+        console.log(`✅ User ${userId} allaqachon to'lov qilgan`);
         await ctx.answerCallbackQuery({
             text: "Siz allaqachon to'lov qilgansiz! ✅",
             show_alert: true
@@ -227,6 +243,8 @@ export async function handlePayment(ctx: Context) {
     // To'lov parametrlari
     const amount = 1111;
     const transactionParam = generateTransactionParam();
+
+    console.log(`📝 To'lov oynasi ko'rsatilmoqda - User: ${userId}, Amount: ${amount}, Tx: ${transactionParam}`);
 
     // Click to'lov linkini yaratish
     // merchant_user_id ni qo'shmasak, Click o'zi default qiymat beradi

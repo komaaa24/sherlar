@@ -40,7 +40,7 @@ export function getClickErrorMessage(errorCode: number): string {
  * Format: https://my.click.uz/services/pay?service_id=...&merchant_id=...
  */
 export function generateClickLink(
-  amount: number, 
+  amount: number,
   transactionParam?: string
 ): { link: string; tx: string } {
   const tx = transactionParam || uuidv4().replace(/-/g, "");
@@ -68,10 +68,18 @@ export function generateClickLink(
 
   const link = `https://my.click.uz/services/pay?${params.toString()}`;
 
-  console.log("Click payment link generated:");
-  console.log("Link:", link);
-  console.log("Transaction ID:", tx);
-  console.log("Additional Param3:", additional_param3);
+  console.log("\n" + "=".repeat(70));
+  console.log("💳 CLICK TO'LOV LINKI YARATILDI");
+  console.log("=".repeat(70));
+  console.log("📅 Vaqt:", new Date().toISOString());
+  console.log("💰 Summa:", amount, "so'm");
+  console.log("🔐 Transaction ID:", tx);
+  console.log("🆔 Additional Param3:", additional_param3);
+  console.log("🏪 Service ID:", serviceId);
+  console.log("🏢 Merchant ID:", merchantId);
+  console.log("🔗 To'lov linki:");
+  console.log("   ", link);
+  console.log("=".repeat(70) + "\n");
 
   return { link, tx };
 }
