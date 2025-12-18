@@ -71,20 +71,20 @@ export async function handleShowSections(ctx: Context) {
 
     const keyboard = new InlineKeyboard();
 
-    // Har bir bo'lim uchun tugma
-    sections.forEach((item, index) => {
-        const section = item.section || "general";
-        const label = getSectionLabel(section);
-        keyboard.text(label, `section:${section}`);
-        if ((index + 1) % 2 === 0) keyboard.row();
-    });
+    // Faqat Tasodifiy tugma
+    keyboard.text("🎲 Tasodifiy latifalar", "section:random");
+    keyboard.row();
+    keyboard.text("⬅️ Orqaga", "back_to_start");
 
-    keyboard.row().text("🎲 Tasodifiy", "section:random");
-    keyboard.row().text("⬅️ Orqaga", "back_to_start");
+    const totalCount = await anecdoteRepo.count();
 
     await ctx.editMessageText(
-        `📂 <b>Bo'limni tanlang:</b>\n\n` +
-        `Qiziqarli latifalar sizni kutmoqda!`,
+        `🎭 <b>Latifalar botiga xush kelibsiz!</b>\n\n` +
+        `📚 Jami: <b>${totalCount} ta</b> qiziqarli latifa\n\n` +
+        `💡 Har safar tasodifiy latifalar ko'rsatiladi!\n` +
+        `🆓 Birinchi 5 ta - <b>BEPUL</b>\n` +
+        `💳 Qolgan latifalarni ko'rish uchun bir martalik <b>1111 so'm</b> to'lov qiling\n\n` +
+        `Boshlash uchun pastdagi tugmani bosing 👇`,
         {
             reply_markup: keyboard,
             parse_mode: "HTML"
