@@ -49,6 +49,9 @@ export function generateTransactionParam(): string {
 /**
  * Click webhook signature tekshirish
  * Click docs: https://docs.click.uz/merchant-api-request/
+ * 
+ * PREPARE (action=0): clickTransId + serviceId + secretKey + merchantTransId + amount + action + signTime
+ * COMPLETE (action=1): clickTransId + serviceId + secretKey + merchantTransId + merchantPrepareId + amount + action + signTime
  */
 export function verifyClickSignature(
     clickTransId: string,
@@ -58,17 +61,36 @@ export function verifyClickSignature(
     amount: string,
     action: string,
     signTime: string,
-    receivedSignString: string
+    receivedSignString: string,
+    merchantPrepareId?: string  // COMPLETE uchun zarur
 ): boolean {
-    const signString = md5(
-        clickTransId +
-        serviceId +
-        secretKey +
-        merchantTransId +
-        amount +
-        action +
-        signTime
-    );
+    // OCTO USULI: action ga qarab signature format o'zgaradi
+    let signString: string;
+
+    if (action === "0") {
+        // PREPARE
+        signString = md5(
+            clickTransId +
+            serviceId +
+            secretKey +
+            merchantTransId +
+            amount +
+            action +
+            signTime
+        );
+    } else {
+        // COMPLETE
+        signString = md5(
+            clickTransId +
+            serviceId +
+            secretKey +
+            merchantTransId +
+            (merchantPrepareId || "") +
+            amount +
+            action +
+            signTime
+        );
+    }
 
     return signString === receivedSignString;
 }

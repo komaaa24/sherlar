@@ -232,14 +232,13 @@ export async function handlePayment(ctx: Context) {
 
     // To'lov parametrlari
     const amount = 1111;
-    const transactionParam = generateTransactionParam();    // Click to'lov linkini yaratish
-    // merchant_user_id ni qo'shmasak, Click o'zi default qiymat beradi
-    const paymentUrl = `https://my.click.uz/services/pay?` +
-        `service_id=${process.env.CLICK_SERVICE_ID}&` +
-        `merchant_id=${process.env.CLICK_MERCHANT_ID}&` +
-        `amount=${amount}&` +
-        `transaction_param=${transactionParam}&` +
-        `return_url=${encodeURIComponent(process.env.CLICK_RETURN_URL || "")}`;
+    const transactionParam = generateTransactionParam();
+
+    // OCTO USULI: encodeURIComponent ishlatmaslik!
+    // Chunki u return_url ni encode qiladi va Click buni yoqtirmaydi
+    // To'g'ridan-to'g'ri string concatenation ishlatish kerak
+    const returnUrl = process.env.CLICK_RETURN_URL || "https://t.me/latifalar1_bot";
+    const paymentUrl = `https://my.click.uz/services/pay?service_id=${process.env.CLICK_SERVICE_ID}&merchant_id=${process.env.CLICK_MERCHANT_ID}&amount=${amount}&transaction_param=${transactionParam}&return_url=${returnUrl}`;
 
     const keyboard = new InlineKeyboard()
         .url("💳 To'lash", paymentUrl)

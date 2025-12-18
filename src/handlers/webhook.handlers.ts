@@ -151,7 +151,7 @@ export async function handleClickComplete(req: Request, res: Response, bot: Bot)
 
     const secretKey = process.env.CLICK_SECRET_KEY!;
 
-    // Signature tekshirish
+    // Signature tekshirish - COMPLETE uchun merchantPrepareId kerak!
     const isValidSignature = verifyClickSignature(
         click_trans_id,
         service_id,
@@ -160,7 +160,8 @@ export async function handleClickComplete(req: Request, res: Response, bot: Bot)
         amount,
         action,
         sign_time,
-        sign_string
+        sign_string,
+        merchant_prepare_id  // COMPLETE uchun zarur - Octo usuli
     );
 
     if (!isValidSignature) {
