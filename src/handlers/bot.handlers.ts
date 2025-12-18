@@ -247,18 +247,13 @@ export async function handlePayment(ctx: Context) {
     });
 
     const keyboard = new InlineKeyboard()
-        .url("💳 To'lash", paymentLink.url)
-        .row()
-        .text("✅ To'lovni tekshirish", `check_payment:${payment.id}`)
-        .row()
-        .text("❌ Bekor qilish", "cancel_payment");
+        .url("💳 To'lash", paymentLink.url);
 
     await ctx.editMessageText(
         `💰 <b>To'lov ma'lumotlari</b>\n\n` +
-        `💵 Summa: <b>${amount.toLocaleString()} so'm</b>\n` +
-        `🔐 Tranzaksiya: <code>${transactionParam}</code>\n\n` +
-        `📱 To'lash uchun pastdagi tugmani bosing.\n` +
-        `To'lovdan keyin "To'lovni tekshirish" tugmasini bosing.`,
+        `💵 Summa: <b>${amount.toLocaleString()} so'm</b>\n\n` +
+        `� Bir martalik ${amount.toLocaleString()} so'm to'lov qiling va botdan cheksiz foydalaning.\n\n` +
+        `To'lash uchun pastdagi tugmani bosing.`,
         {
             reply_markup: keyboard,
             parse_mode: "HTML"

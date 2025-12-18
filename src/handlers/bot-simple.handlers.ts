@@ -241,19 +241,13 @@ export async function handlePayment(ctx: Context) {
     const paymentUrl = `https://my.click.uz/services/pay?service_id=${process.env.CLICK_SERVICE_ID}&merchant_id=${process.env.CLICK_MERCHANT_ID}&amount=${amount}&transaction_param=${transactionParam}&return_url=${returnUrl}`;
 
     const keyboard = new InlineKeyboard()
-        .url("💳 To'lash", paymentUrl)
-        .row()
-        .text("✅ To'lovni tekshirish", `check_payment:${transactionParam}`)
-        .row()
-        .text("❌ Bekor qilish", "cancel_payment");
+        .url("💳 To'lash", paymentUrl);
 
     await ctx.editMessageText(
         `💰 <b>Qolgan latifalarni ko'rish uchun to'lov qiling</b>\n\n` +
-        `💵 Bir martalik to'lov: <b>1111 so'm</b>\n` +
-        `🎁 Yuzlab latifalardan bahramand bo'ling!\n\n` +
-        `🔐 Tranzaksiya: <code>${transactionParam}</code>\n\n` +
-        `📱 To'lash uchun pastdagi tugmani bosing.\n` +
-        `To'lovdan keyin "To'lovni tekshirish" tugmasini bosing.`,
+        `💵 Bir martalik to'lov: <b>${amount.toLocaleString()} so'm</b>\n\n` +
+        `📱 Bir martalik ${amount.toLocaleString()} so'm to'lov qiling va botdan cheksiz foydalaning.\n\n` +
+        `To'lash uchun pastdagi tugmani bosing.`,
         {
             reply_markup: keyboard,
             parse_mode: "HTML"
