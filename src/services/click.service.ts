@@ -1,37 +1,36 @@
 import crypto from "crypto";
 
-export interface ClickPaymentParams {
-    serviceId: string;
-    merchantId: string;
+export interface PaymentParams {
     amount: number;
     transactionParam: string;
-    returnUrl: string;
-    merchantUserId?: string;
+    userId?: number; // Telegram ID (ixtiyoriy)
+    returnUrl?: string; // To'lovdan keyin qaytish URL'i
 }
 
-export interface ClickPaymentLink {
+export interface PaymentLink {
     url: string;
     transactionParam: string;
 }
 
 /**
- * Click to'lov linkini yaratish
- * OCTO USULI: URLSearchParams ishlatmaslik! To'g'ridan-to'g'ri string concatenation
+ * Oddiy to'lov linkini yaratish (user_id va return_url bilan)
  */
-export function generateClickPaymentLink(params: ClickPaymentParams): ClickPaymentLink {
-    const {
-        serviceId,
-        merchantId,
-        amount,
-        transactionParam,
-        returnUrl,
-        merchantUserId
-    } = params;
+export function generatePaymentLink(params: PaymentParams): PaymentLink {
+    const { amount, transactionParam, userId, returnUrl } = params;
+    const baseUrl = process.env.PAYMENT_URL || "http://213.230.110.176:9999/pay";
 
-    // OCTO USULI: URLSearchParams ishlatmaslik kerak!
-    // Chunki u return_url ni encode qiladi va Click buni yoqtirmaydi
-    // Octo proyektida ham xuddi shunday qilingan
-    const url = `https://my.click.uz/services/pay?service_id=${serviceId}&merchant_id=${merchantId}&amount=${amount}&transaction_param=${transactionParam}&return_url=${returnUrl}`;
+    // Base URL
+    let url = `${baseUrl}?amount=${amount}&tx=${transactionParam}`;
+
+    // user_id qo'shish (agar mavjud bo'lsa)
+    if (userId) {
+        url += `&user_id=${userId}`;
+    }
+
+    // return_url qo'shish (to'lovdan keyin qaytish uchun)
+    if (returnUrl) {
+        url += `&return_url=${encodeURIComponent(returnUrl)}`;
+    }
 
     return {
         url,
@@ -47,79 +46,8 @@ export function generateTransactionParam(): string {
 }
 
 /**
- * Click webhook signature tekshirish
- * Click docs: https://docs.click.uz/merchant-api-request/
- * 
- * PREPARE (action=0): clickTransId + serviceId + secretKey + merchantTransId + amount + action + signTime
- * COMPLETE (action=1): clickTransId + serviceId + secretKey + merchantTransId + merchantPrepareId + amount + action + signTime
+ * Qat'iy narxni olish
  */
-export function verifyClickSignature(
-    clickTransId: string,
-    serviceId: string,
-    secretKey: string,
-    merchantTransId: string,
-    amount: string,
-    action: string,
-    signTime: string,
-    receivedSignString: string,
-    merchantPrepareId?: string  // COMPLETE uchun zarur
-): boolean {
-    // OCTO USULI: action ga qarab signature format o'zgaradi
-    let signString: string;
-
-    if (action === "0") {
-        // PREPARE
-        signString = md5(
-            clickTransId +
-            serviceId +
-            secretKey +
-            merchantTransId +
-            amount +
-            action +
-            signTime
-        );
-    } else {
-        // COMPLETE
-        signString = md5(
-            clickTransId +
-            serviceId +
-            secretKey +
-            merchantTransId +
-            (merchantPrepareId || "") +
-            amount +
-            action +
-            signTime
-        );
-    }
-
-    return signString === receivedSignString;
-}
-
-function md5(text: string): string {
-    return crypto.createHash("md5").update(text).digest("hex");
-}
-
-/**
- * Click response signature yaratish
- */
-export function generateClickResponseSignature(
-    clickTransId: string,
-    serviceId: string,
-    secretKey: string,
-    merchantTransId: string,
-    merchantPrepareId: string,
-    amount: string,
-    action: string,
-    signTime: string
-): string {
-    return md5(
-        clickTransId +
-        serviceId +
-        secretKey +
-        merchantTransId +
-        merchantPrepareId +
-        amount +
-        action +
-        signTime
-    );
+export function getFixedPaymentAmount(): number {
+    return 1111; // Qat'iy narx
 }

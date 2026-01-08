@@ -61,7 +61,17 @@ export class UserService {
     }
 
     /**
-     * Ko'rilgan latifalar sonini oshirish
+     * Foydalanuvchi ma'lumotlarini yangilash
+     */
+    async update(telegramId: number, data: Partial<User>): Promise<void> {
+        await this.userRepo.update(
+            { telegramId },
+            data
+        );
+    }
+
+    /**
+     * Ko'rilgan anekdotlar sonini oshirish
      */
     async incrementViewedAnecdotes(telegramId: number): Promise<void> {
         const user = await this.findOrCreate(telegramId);

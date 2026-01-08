@@ -6,26 +6,29 @@ import express from "express";
 import bodyParser from "body-parser";
 import { Bot } from "grammy";
 import { AppDataSource } from "./database/data-source.js";
+import { SherlarDataSource } from "./database/sherlar-data-source.js";
 import {
     handleStart,
-    handleShowSections,
-    handleSectionSelect,
+    handleShowPoems,
     handleNext,
     handlePayment,
     handleCheckPayment,
-    syncAnecdotesFromAPI
+    syncPoemsFromAPI,
+    handleUploadBackground
 } from "./handlers/bot.handlers.js";
 import {
-    handleClickPrepare,
-    handleClickComplete
+    handlePaymentWebhook
 } from "./handlers/webhook.handlers.js";
+import {
+    handleAdminPanel,
+    handleAdminCallback,
+    handleApproveBytelegramId,
+    handleRevokeByTelegramId
+} from "./handlers/admin.handlers.js";
 
 // Environment variables validation
 const requiredEnvVars = [
-    "BOT_TOKEN",
-    "CLICK_SERVICE_ID",
-    "CLICK_MERCHANT_ID",
-    "CLICK_SECRET_KEY"
+    "BOT_TOKEN"
 ];
 
 for (const envVar of requiredEnvVars) {
@@ -51,6 +54,64 @@ bot.catch((err) => {
  */
 bot.command("start", handleStart);
 
+// Super Admin Panel
+bot.command("admin", handleAdminPanel);
+
+// To'lovni qo'lda tasdiqlash
+bot.command("approve", async (ctx) => {
+    const userId = ctx.from?.id;
+    const SUPER_ADMIN_ID = 7789445876;
+
+    if (userId !== SUPER_ADMIN_ID) {
+        return ctx.reply("⛔️ Bu buyruq faqat super admin uchun!");
+    }
+
+    const args = ctx.message?.text?.split(" ");
+    if (!args || args.length < 2) {
+        return ctx.reply(
+            `📝 <b>TO'LOVNI TASDIQLASH</b>\n\n` +
+            `Foydalanish: /approve TELEGRAM_ID\n\n` +
+            `Masalan: /approve 7789445876`,
+            { parse_mode: "HTML" }
+        );
+    }
+
+    const telegramId = parseInt(args[1]);
+    if (isNaN(telegramId)) {
+        return ctx.reply("❌ Noto'g'ri Telegram ID!");
+    }
+
+    await handleApproveBytelegramId(ctx, telegramId);
+});
+
+// Obunani bekor qilish (Super Admin)
+bot.command("revoke", async (ctx) => {
+    const userId = ctx.from?.id;
+    const SUPER_ADMIN_ID = 7789445876;
+
+    if (userId !== SUPER_ADMIN_ID) {
+        return ctx.reply("⛔️ Bu buyruq faqat super admin uchun!");
+    }
+
+    const args = ctx.message?.text?.split(" ");
+    if (!args || args.length < 2) {
+        return ctx.reply(
+            `📝 <b>OBUNANI BEKOR QILISH</b>\n\n` +
+            `Foydalanish: /revoke TELEGRAM_ID\n\n` +
+            `Masalan: /revoke 7789445876\n\n` +
+            `Bu buyruq foydalanuvchining obunasini bekor qiladi.`,
+            { parse_mode: "HTML" }
+        );
+    }
+
+    const telegramId = parseInt(args[1]);
+    if (isNaN(telegramId)) {
+        return ctx.reply("❌ Noto'g'ri Telegram ID!");
+    }
+
+    await handleRevokeByTelegramId(ctx, telegramId);
+});
+
 bot.command("sync", async (ctx) => {
     const userId = ctx.from?.id;
     const adminIds = (process.env.ADMIN_IDS || "").split(",").map(Number);
@@ -59,8 +120,8 @@ bot.command("sync", async (ctx) => {
         return ctx.reply("⛔️ Bu buyruqdan foydalanish uchun ruxsatingiz yo'q.");
     }
 
-    await ctx.reply("🔄 Latifalar sinxronlashtirilmoqda...");
-    await syncAnecdotesFromAPI();
+    await ctx.reply("🔄 She'rlar sinxronlashtirilmoqda...");
+    await syncPoemsFromAPI();
     await ctx.reply("✅ Sinxronlash muvaffaqiyatli tugadi!");
 });
 
@@ -71,13 +132,14 @@ bot.on("callback_query:data", async (ctx) => {
     const data = ctx.callbackQuery.data;
 
     try {
-        if (data === "show_sections") {
-            await handleShowSections(ctx);
+        // Admin panel callbacks
+        if (data.startsWith("admin:")) {
+            const action = data.replace("admin:", "");
+            await handleAdminCallback(ctx, action);
+        } else if (data === "show_poems") {
+            await handleShowPoems(ctx);
         } else if (data === "back_to_start") {
             await handleStart(ctx);
-        } else if (data.startsWith("section:")) {
-            const section = data.replace("section:", "");
-            await handleSectionSelect(ctx, section);
         } else if (data.startsWith("next:")) {
             const index = parseInt(data.replace("next:", ""));
             await handleNext(ctx, index);
@@ -103,6 +165,9 @@ bot.on("callback_query:data", async (ctx) => {
     }
 });
 
+// Admin: Rasm yuborilganda fon rasmini yangilash
+bot.on("message:photo", handleUploadBackground);
+
 /**
  * Express server for webhooks
  */
@@ -121,106 +186,81 @@ app.get("/health", (req, res) => {
     });
 });
 
-// Click webhook endpoint - ASOSIY
-app.post("/webhook/click", async (req, res) => {
-    let { action } = req.body;
-
-    // Action string bo'lishi mumkin, number ga o'tkazamiz
-    action = parseInt(action);
-
-    console.log("\n" + "🌐".repeat(40));
-    console.log("📥 INCOMING CLICK WEBHOOK REQUEST - /webhook/click");
-    console.log("  Action:", action, "(type:", typeof action, ")");
-    console.log("  Action type:", action === 0 ? "PREPARE" : action === 1 ? "COMPLETE" : "UNKNOWN");
-    console.log("  Time:", new Date().toISOString());
-    console.log("🌐".repeat(40) + "\n");
-
+// Internal endpoint for payment notifications (from gateway)
+app.post("/internal/send-payment-notification", async (req, res) => {
     try {
-        if (action === 0) {
-            // PREPARE
-            await handleClickPrepare(req, res, bot);
-        } else if (action === 1) {
-            // COMPLETE
-            await handleClickComplete(req, res, bot);
-        } else {
-            console.error("\n" + "❌".repeat(40));
-            console.error("ERROR: Unknown action received!");
-            console.error("  Action:", action, "(type:", typeof action, ")");
-            console.error("  Expected: 0 (PREPARE) or 1 (COMPLETE)");
-            console.error("  Full request body:");
-            console.error(JSON.stringify(req.body, null, 2));
-            console.error("❌".repeat(40) + "\n");
+        const { telegramId, amount } = req.body;
 
-            res.status(400).json({
-                error: -3,
-                error_note: "Unknown action"
-            });
+        if (!telegramId) {
+            return res.status(400).json({ error: "telegramId required" });
         }
-    } catch (error) {
-        console.error("\n" + "💥".repeat(40));
-        console.error("CRITICAL ERROR: Webhook handler crashed!");
-        console.error("💥".repeat(40));
-        console.error("Error:", error);
-        console.error("Stack:", error instanceof Error ? error.stack : String(error));
-        console.error("Request body:", JSON.stringify(req.body, null, 2));
-        console.error("💥".repeat(40) + "\n");
 
+        console.log(`📥 [INTERNAL] Payment notification request for user: ${telegramId}`);
+
+        // Send notification via bot with inline button to return to bot
+        const { InlineKeyboard } = await import("grammy");
+        const keyboard = new InlineKeyboard()
+            .url("🔙 Botga qaytish", `https://t.me/${bot.botInfo.username}`);
+
+        await bot.api.sendMessage(
+            telegramId,
+            `✅ <b>To'lovingiz tasdiqlandi!</b>\n\n` +
+            `💰 Summa: ${amount || 1111} so'm\n` +
+            `🎉 Endi botdan cheksiz foydalanishingiz mumkin!\n\n` +
+            `She'rlarni o'qishni boshlash uchun quyidagi tugmani bosing 👇`,
+            {
+                parse_mode: "HTML",
+                reply_markup: keyboard
+            }
+        );
+
+        console.log(`📤 [INTERNAL] Notification sent to user ${telegramId}`);
+
+        res.json({ success: true, message: "Notification sent" });
+    } catch (error) {
+        console.error("❌ [INTERNAL] Failed to send notification:", error);
+        res.status(500).json({ error: "Failed to send notification" });
+    }
+});
+
+// Oddiy to'lov webhook endpoint
+app.post("/webhook/pay", async (req, res) => {
+    try {
+        await handlePaymentWebhook(req, res, bot);
+    } catch (error) {
+        console.error("❌ Webhook error:", error);
         res.status(500).json({
-            error: -8,
-            error_note: "Internal server error"
+            error: "Internal server error"
         });
     }
-});// Click webhook endpoint - QO'SHIMCHA (agar kabinetda /api/click yozilgan bo'lsa)
-app.post("/api/click", async (req, res) => {
-    console.log("\n" + "⚠️ ".repeat(40));
-    console.log("📥 CLICK WEBHOOK REQUEST RECEIVED ON /api/click");
-    console.log("   Redirecting to main webhook handler...");
-    console.log("⚠️ ".repeat(40) + "\n");
+});
 
-    let { action } = req.body;
-
-    // Action string bo'lishi mumkin, number ga o'tkazamiz
-    action = parseInt(action);
-
-    console.log("   Action (parsed):", action, typeof action);
-
-    try {
-        if (action === 0) {
-            await handleClickPrepare(req, res, bot);
-        } else if (action === 1) {
-            await handleClickComplete(req, res, bot);
-        } else {
-            console.error("ERROR: Unknown action:", action, typeof action);
-            console.error("Request body:", JSON.stringify(req.body, null, 2));
-            res.status(400).json({
-                error: -3,
-                error_note: "Unknown action"
-            });
-        }
-    } catch (error) {
-        console.error("CRITICAL ERROR:", error);
-        console.error("Stack:", error instanceof Error ? error.stack : String(error));
-        res.status(500).json({
-            error: -8,
-            error_note: "Internal server error"
-        });
-    }
-});/**
+/**
  * Initialize application
  */
 async function main() {
     try {
         console.log("🚀 Starting Anecdote Bot...");
 
-        // Initialize database
-        console.log("📦 Connecting to database...");
+        // Initialize main database (sevgi)
+        console.log("📦 Connecting to main database (sevgi)...");
         await AppDataSource.initialize();
-        console.log("✅ Database connected");
+        console.log("✅ Main database connected");
 
-        // Sync anecdotes on startup
-        console.log("🔄 Syncing anecdotes from API...");
-        await syncAnecdotesFromAPI();
-        console.log("✅ Anecdotes synced");
+        // Initialize sherlar database (external payment check)
+        console.log("📦 Connecting to sherlar database...");
+        try {
+            await SherlarDataSource.initialize();
+            console.log("✅ Sherlar database connected");
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : "Unknown error";
+            console.warn("⚠️ Sherlar database connection failed (will use local payments only):", errorMsg);
+        }
+
+        // Sync poems on startup
+        console.log("🔄 Syncing poems from API...");
+        await syncPoemsFromAPI();
+        console.log("✅ Poems synced");
 
         // Start Express server
         app.listen(PORT, () => {
@@ -229,13 +269,48 @@ async function main() {
 
         // Start bot
         console.log("🤖 Starting bot...");
+
+        // Set menu button for all users (optional)
+        try {
+            await bot.api.setChatMenuButton({
+                menu_button: {
+                    type: "commands"
+                }
+            });
+
+            // Oddiy foydalanuvchilar uchun komandalar
+            await bot.api.setMyCommands([
+                { command: "start", description: "🚀 Botni qayta boshlash" }
+            ]);
+
+            // Admin uchun maxsus komandalar
+            const SUPER_ADMIN_ID = 7789445876;
+            await bot.api.setMyCommands(
+                [
+                    { command: "start", description: "🚀 Botni qayta boshlash" },
+                    { command: "admin", description: "👑 Admin panel" },
+                    { command: "approve", description: "✅ To'lovni tasdiqlash" },
+                    { command: "revoke", description: "🚫 Obunani bekor qilish" }
+                ],
+                {
+                    scope: {
+                        type: "chat",
+                        chat_id: SUPER_ADMIN_ID
+                    }
+                }
+            );
+
+            console.log("✅ Menu button configured (user + admin commands)");
+        } catch (error) {
+            console.warn("⚠️ Failed to set menu button (skipping):", error instanceof Error ? error.message : error);
+        }
+
         await bot.start({
             onStart: (botInfo) => {
                 console.log(`✅ Bot @${botInfo.username} started successfully!`);
                 console.log("=".repeat(50));
             }
         });
-
     } catch (error) {
         console.error("❌ Failed to start application:", error);
         process.exit(1);

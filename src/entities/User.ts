@@ -24,6 +24,10 @@ export class User {
     @Column({ type: "int", default: 0 })
     viewedAnecdotes!: number;
 
+    // Admin tomonidan revoke qilingan vaqt (agar revoke qilingan bo'lsa)
+    @Column({ type: "timestamp", nullable: true })
+    revokedAt?: Date;
+
     @OneToMany(() => Payment, payment => payment.user)
     payments!: Payment[];
 

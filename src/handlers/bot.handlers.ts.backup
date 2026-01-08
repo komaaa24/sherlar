@@ -87,7 +87,7 @@ export async function handleStart(ctx: Context) {
         await ctx.reply(
             `💖 <b>Xush kelibsiz aziz foydalanuvchi!</b>\n\n` +
             `🎉 Sizda cheksiz she'rlar kolleksiyasiga to'liq kirish huquqi mavjud!\n\n` +
-            `📚 Minglab go'zal sevgi she'rlari sizni kutmoqda. Har bir she'r - yurakdan yurakka yo'l topgan so'zlar.\n\n` +
+            `� Minglab go'zal sevgi she'rlari sizni kutmoqda. Har bir she'r - yurakdan yurakka yo'l topgan so'zlar.\n\n` +
             `✨ <i>Muhabbat - bu dunyo tillarida eng chiroyli she'rdir...</i>\n\n` +
             `She'rlardan bahramand bo'lish uchun quyidagi tugmani bosing 👇`,
             {
@@ -98,7 +98,7 @@ export async function handleStart(ctx: Context) {
     } else {
         // Unpaid users - free trial message
         await ctx.reply(
-            `💝 <b>Sevgi she'rlari botiga xush kelibsiz!</b>\n\n` +
+            `�💝 <b>Sevgi she'rlari botiga xush kelibsiz!</b>\n\n` +
             `📖 Go'zal sevgi she'rlari sizni kutmoqda.\n\n` +
             `💡 <b>Qanday ishlaydi?</b>\n` +
             `• 5 ta she'rni bepul o'qing\n` +
@@ -134,21 +134,11 @@ export async function handleShowPoems(ctx: Context) {
     }
 
     // Tasodifiy she'rlarni olish
-    let poems;
-    if (hasPaid) {
-        // To'lagan foydalanuvchilar uchun BARCHA she'rlarni ko'rsatish
-        poems = await poemRepo
-            .createQueryBuilder("poem")
-            .orderBy("RANDOM()")
-            .getMany();
-    } else {
-        // To'lamagan foydalanuvchilar uchun faqat 5 ta
-        poems = await poemRepo
-            .createQueryBuilder("poem")
-            .orderBy("RANDOM()")
-            .limit(5)
-            .getMany();
-    }
+    const poems = await poemRepo
+        .createQueryBuilder("poem")
+        .orderBy("RANDOM()")
+        .limit(hasPaid ? 20 : 5)
+        .getMany();
 
     if (poems.length === 0) {
         await ctx.answerCallbackQuery({
@@ -196,27 +186,18 @@ async function showPoem(ctx: Context, userId: number, index: number) {
         keyboard.text("Oldingi", `next:${index - 1}`);
     }
 
+    keyboard.row();
+    keyboard.text("Bo'limlarga qaytish", "back_to_start");
+
     // Agar to'lov qilmagan bo'lsa va oxirgi she'r ko'rsatilayotgan bo'lsa
     if (!hasPaid && index === total - 1) {
         keyboard.row();
         keyboard.text("💳 To'lov qilish", "payment");
     }
 
-    // Chiroyli kreativ format bilan she'rni ko'rsatish
-    let text = `╭─────── ✦ ───────╮\n`;
-    text += `       💕 <b>Sevgi She'ri</b> 💕\n`;
-    text += `╰─────── ✦ ───────╯\n\n`;
-
-    // She'r matni - har qatorni ajratib
-    const lines = poem.content.split('\n');
-    lines.forEach(line => {
-        if (line.trim()) {
-            text += `  🌹 <i>${line.trim()}</i>\n`;
-        }
-    });
-
-    text += `\n╰─────── ✦ ───────╯\n`;
-    text += `  📄 She'r ${index + 1}/${total}\n`;
+    // Oddiy matn shaklida
+    let text = `<b>${poem.content}</b>\n\n`;
+    text += `🙂 <i>${poem.views} marta ko'rilgan</i>`;
 
     // Matnni yuborish
     if (ctx.callbackQuery) {
@@ -330,15 +311,19 @@ export async function handlePayment(ctx: Context) {
     const keyboard = new InlineKeyboard()
         .url("💳 To'lash", paymentLink.url)
         .row()
-        .text("✅ To'lovni tekshirish", `check_payment:${payment.id}`);
+        .text("✅ To'lovni tekshirish", `check_payment:${payment.id}`)
+        .row()
+        .text("❌ Bekor qilish", "cancel_payment");
 
     await ctx.editMessageText(
         `💰 <b>To'lov ma'lumotlari</b>\n\n` +
-        `💵 Summa: <b>${amount.toLocaleString()} so'm</b> (qat'iy narx)\n\n` +
+        `💵 Summa: <b>${amount.toLocaleString()} so'm</b> (qat'iy narx)\n` +
+        `🔐 Tranzaksiya: <code>${transactionParam}</code>\n\n` +
         `📱 <b>To'lash:</b>\n` +
         `1️⃣ "To'lash" tugmasini bosing\n` +
         `2️⃣ To'lovni amalga oshiring\n` +
-        `3️⃣ "To'lovni tekshirish" tugmasini bosing\n\n` +
+        `3️⃣ To'lov tugagach avtomatik botga qaytasiz\n` +
+        `4️⃣ "To'lovni tekshirish" tugmasini bosing\n\n` +
         `✅ To'lov tasdiqlanishi bilanoq cheksiz she'rlardan bahramand bo'lasiz!`,
         {
             reply_markup: keyboard,
@@ -400,31 +385,12 @@ export async function handleCheckPayment(ctx: Context, paymentId: number) {
             if (paymentResult.hasPaid) {
                 console.log(`✅ [CHECK_PAYMENT] Payment found in sherlar DB for user: ${userId}`);
 
-                // User ma'lumotlarini olish (revokedAt tekshirish uchun)
-                const userRepo = AppDataSource.getRepository(User);
-                const user = await userRepo.findOne({ where: { telegramId: userId } });
-
-                // Agar revoke qilingan bo'lsa va to'lov revoke'dan oldin bo'lsa -> rad etish
-                if (user?.revokedAt && paymentResult.paymentDate) {
-                    if (paymentResult.paymentDate < user.revokedAt) {
-                        console.log(`⚠️ [CHECK_PAYMENT] Payment is older than revoke date. Rejecting.`);
-
-                        await ctx.editMessageText(
-                            `⚠️ <b>Obunangiz bekor qilingan!</b>\n\n` +
-                            `Siz qaytadan to'lov qilishingiz kerak.\n\n` +
-                            `Davom etish uchun /start bosing va yangi to'lov qiling.`,
-                            { parse_mode: "HTML" }
-                        );
-                        return;
-                    }
-                }
-
-                // Yangi to'lov yoki revoke qilinmagan - tasdiqlaymiz
                 // Local DB'ni yangilash
                 payment.status = PaymentStatus.PAID;
                 await paymentRepo.save(payment);
 
                 // User'ni to'lagan deb belgilash va revokedAt'ni tozalash
+                const userRepo = AppDataSource.getRepository(User);
                 await userRepo
                     .createQueryBuilder()
                     .update(User)

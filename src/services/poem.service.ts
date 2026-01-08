@@ -1,4 +1,4 @@
-interface AnecdoteItem {
+interface PoemItem {
     id: number;
     text: string;
     caption?: string;
@@ -8,17 +8,19 @@ interface AnecdoteItem {
 }
 
 interface ProgramSoftResponse {
-    data?: AnecdoteItem[];
+    data?: PoemItem[];
     links?: any;
     meta?: any;
 }
 
 /**
- * ProgramSoft API dan latifalarni olish
+ * ProgramSoft API dan she'rlarni olish
  */
-export async function fetchAnecdotesFromAPI(page: number = 1): Promise<AnecdoteItem[]> {
+export async function fetchPoemsFromAPI(page: number = 1): Promise<PoemItem[]> {
     try {
-        const url = `https://www.programsoft.uz/api/service/1?page=${page}`;
+        const apiBaseUrl = process.env.PROGRAMSOFT_API_URL || "https://www.programsoft.uz/api";
+        const serviceId = process.env.PROGRAMSOFT_SERVICE_ID || "7";
+        const url = `${apiBaseUrl}/service/${serviceId}?page=${page}`;
         const response = await fetch(url);
 
         if (!response.ok) {
@@ -37,26 +39,32 @@ export async function fetchAnecdotesFromAPI(page: number = 1): Promise<AnecdoteI
 
         return items;
     } catch (error) {
-        console.error("Error fetching anecdotes from API:", error);
+        console.error("Error fetching poems from API:", error);
         throw error;
     }
 }
 
 /**
- * Latifani formatlash
+ * She'rni formatlash
  */
-export function formatAnecdote(item: AnecdoteItem): {
+export function formatPoem(item: PoemItem): {
     externalId: string;
     content: string;
-    section: string;
+    author?: string;
+    title?: string;
+    likes: number;
+    dislikes: number;
 } {
     const externalId = String(item.id);
-    const content = item.text || "Latifa topilmadi";
-    const section = item.caption || "Umumiy";
+    const content = item.text || "She'r topilmadi";
+    const author = item.caption || undefined;
 
     return {
         externalId,
         content,
-        section
+        author,
+        title: undefined,
+        likes: parseInt(item.likes || "0") || 0,
+        dislikes: parseInt(item.dislikes || "0") || 0
     };
 }
